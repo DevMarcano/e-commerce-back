@@ -4,10 +4,9 @@ from django.http import JsonResponse
 from django.contrib.auth import login, logout
 from django.conf import settings
 from django.contrib.auth.models import User
-from extras import ValidatedToken, check_pre_login, clean_domain
-from new_herencia import CacheGroup
-from modules.profiles.models import Profile, SessionToken, ProfileSkin
-from cryptography import encoded_params, encoded_dict, make_hash, verify_hash
+from .extras import ValidatedToken, check_pre_login, clean_domain
+from modules.profiles.models import Profile, SessionToken
+from .cryptography import encoded_params, encoded_dict, make_hash, verify_hash
 import json
 import time
 from django.core.cache import cache
@@ -21,7 +20,6 @@ def timed(f):
 		start = time.time()
 		result = f(*args, **kwds)
 		elapsed = time.time() - start
-		print "%s took %.6f time to finish" % (f.__name__, elapsed)
 		return result
 	return wrapper
 
@@ -59,8 +57,6 @@ def NewApiToken(f):
 		#if _restart_time > 1:
 		#	return JsonResponse({'status':False,'message':'Invalid Signature'}, status=401)
 
-
-
 		_new_json = ""
 
 		_final = len(_raw_json)
@@ -83,25 +79,6 @@ def NewApiToken(f):
 		return f(request, *args, **kws)
 
 	return decorated_function
-
-
-def LobbyView(f):
-	@functools.wraps(f)
-	def decorated_function(request, *args, **kws):
-		user_group = CacheGroup(request.user)
-		if str(user_group) != "Customer":
-			return JsonResponse({'status':False}, status=401)
-		return f(request, *args, **kws)
-	return decorated_function
-
-def BackView(f):
-	@functools.wraps(f)
-	def decorated_function(request, *args, **kws):
-		user_group = CacheGroup(request.user)
-		if str(user_group) == "Customer":
-			return JsonResponse({'status':False}, status=401)
-		return f(request, *args, **kws)
-	return decorated_function		
 
 
 def AuthToken(f):

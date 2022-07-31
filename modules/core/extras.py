@@ -3,7 +3,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
-from modules.profiles.models import TimeZones, SessionToken, Profile, Country, ProfileSkin
+from modules.profiles.models import SessionToken, Profile
 from datetime import datetime, timedelta
 from calendar import monthrange
 from django.core.cache import cache
@@ -12,12 +12,24 @@ from django.contrib.gis.geoip2 import GeoIP2
 from django.utils import timezone
 import hashlib
 from django.contrib.auth import logout
-from new_herencia import CacheGroup, CacheProfile
-if not settings.DEBUG:
-	from mongo_models import Oldtokens
-from modules.plays.models import PayBonus, Transaction, CoinPayment
+from .mongo_models import Oldtokens
+# from modules.plays.models import PayBonus, Transaction, CoinPayment
 import pytz
 
+def userSerializer(user):
+	return{"Name": user.first_name, "last_name": user.last_name, "username":user.username[2:], "email": user.email, "lastLogin": user.last_login}
+
+
+def CacheProfile(user_id, update=False):
+	cache_time = 3600
+	cache_key = str(user_id) + "_Profile"
+	result = cache.get(cache_key)
+	if result and not update:
+		return result
+
+	new_prof = list(Profile.objects.filter(user_id=user_id).values_list("user__pk", "user__username", "balance", "status", "user__email"))
+	cache.set(cache_key, new_prof[0], cache_time)
+	return new_prof[0]
 
 
 def ZHbyCoin(coin_cod):
@@ -33,6 +45,7 @@ def ValidatedEmail(email):
 	else:
 		return {'status':False, 'message':'invalid email address'}
 
+
 def ValidatedUsername(username):
 	if len(username) > 12:
 		return {'status':False, 'message':'invalid username len'}
@@ -41,6 +54,7 @@ def ValidatedUsername(username):
 		return {'status':True}
 	else:
 		return {'status':False, 'message':'invalid username character'}
+
 
 def ValidatedPass(password):
 	if len(password) < 6 or len(password) > 42:
@@ -52,12 +66,14 @@ def ValidatedPass(password):
 
 	return {'status':True}
 
+
 def ValidatedToken(_token):
 	pattern = re.compile(r'\b[0-9a-f]{40}\b')
 	if not bool(re.match(pattern, _token)):
 		return {'status':False, 'message':'invalid token.'}
 
 	return {'status':True}
+
 
 def ValidatedIP(user_ip):
 	ban_country = settings.BAN
@@ -71,14 +87,10 @@ def ValidatedIP(user_ip):
 	except:
 		return {'status':True}
 
+
 def GetCountry(_ip):
 	Geo = GeoIP2()
-	#try:
 	UserCountry = Geo.country(_ip)['country_code']
-	#except:
-	#	return False
-
-
 
 	if UserCountry is None:
 		dict_country = {'country_code':"N/A", 'country_name':"N/A", 'country_id':0, 'ban':False}
@@ -98,7 +110,6 @@ def GetCountry(_ip):
 	return dict_country
 
 
-
 def check_date(_token_date, expire_time=7200):
 	_new_date = datetime.now()
 	_new_date = _new_date.replace(tzinfo=None)
@@ -109,6 +120,7 @@ def check_date(_token_date, expire_time=7200):
 
 	return {'status':False}
 
+
 def check_user_token(_user, _token=False):
 	if not _token:
 		_user_token = SessionToken.objects.filter(user=_user)
@@ -118,23 +130,17 @@ def check_user_token(_user, _token=False):
 	if not _user_token.exists():
 		return {'status':False}
 	_utk = _user_token[0]
-	#_expire_date = check_date(_utk.created_date)
-	#if _expire_date['status']:
-	#	act_prof = Profile.objects.get(user=_utk.user)
-	#	act_prof.status = False
-	#	act_prof.save()
-	#	_utk.delete()
-	#	return {'status':False, 'message':'token has expired'}
 
 	return {'status':True, 'token':_utk.token}
+
 
 def check_pre_login(_token, _domain):
 	_user_token = SessionToken.objects.filter(token=_token)
 	if not _user_token.exists():
 		return {'status':False, 'message':'invalid token'}
 	_utk = _user_token[0]
-
-	if hashlib.sha1(str(_utk.user.username) + str(_utk.created_date.strftime("%Y-%m-%d %H:%M:%S"))).hexdigest() != _utk.token:
+	data = str(_utk.user.username) + str(_utk.created_date.strftime("%Y-%m-%d %H:%M:%S"))
+	if hashlib.sha1(data.encode("utf-8")).hexdigest() != _utk.token:
 		return {'status':False, 'message':'invalid token 2'}
 
 	if _utk.domain != _domain:
@@ -142,11 +148,13 @@ def check_pre_login(_token, _domain):
 
 	return {'status':True, 'user':_utk.user.id}
 
+
 def gen_token(_user):
 	created_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 	part_token = str(_user.username) + str(created_date)
-	_token = hashlib.sha1(part_token).hexdigest()
+	_token = hashlib.sha1(part_token.encode("utf-8")).hexdigest()
 	return {'token':_token, 'date':created_date}
+
 
 def new_token(_user, _domain):
 	_try_token = check_user_token(_user)
@@ -160,6 +168,7 @@ def new_token(_user, _domain):
 		_old_token = Oldtokens(player_id=int(_user.pk), token=_token['token'])
 		_old_token.save()
 	return {'status':True, 'token':_token['token']}
+
 
 def refresh_token(_user, _domain):
 	try:
@@ -181,23 +190,7 @@ def get_profile_by_user(uid):
 		_prof = Profile.objects.get(user_id=uid)
 		return _prof
 	except:
-		return False
-
-
-def get_profile_by_cashier_id(uid):
-	try:
-		_prof = Profile.objects.filter(direct_boss=uid)
-		return _prof
-	except:
-		return False
-
-def get_profile_by_agent_id(uid):
-	try:
-		_prof = Profile.objects.filter(indirect_boss=uid)
-		return _prof
-	except:
 		return False		
-	
 
 
 def close(request):
@@ -233,10 +226,12 @@ def all_countries():
 
 	return list_country
 
+
 def clean_domain(_domain):
 	if _domain[:4] == "www.":
 		_domain = _domain[4:]
 	return _domain
+
 
 def check_bonus(uid):
 	_try_bonus = PayBonus.objects.filter(user_id=uid)
@@ -259,6 +254,7 @@ def check_bonus(uid):
 
 	else:
 		return True
+
 
 def can_bonus(uid, _balance, _coin):
 	_min_bal = 0.00
@@ -289,7 +285,6 @@ def can_bonus(uid, _balance, _coin):
 		return {'status':True, 'percent':_percent_dict[_deposits]}
 
 
-
 def percent_rollover(uid):
 	_try_bonus = PayBonus.objects.filter(user_id=uid)
 	if not _try_bonus.exists():
@@ -307,6 +302,7 @@ def percent_rollover(uid):
 		#_percent = _percent / _total_roll
 
 	return {'total_rollover':_total_roll, 'current_rollover':act_roll, 'percent_rollover':_percent, 'status':True}
+
 
 def clean_str(_string):
 	return  re.sub('[^a-zA-Z0-9]','',_string)

@@ -11,20 +11,23 @@ class Profile(models.Model):
 	user = models.OneToOneField(User, related_name="usuario", db_index=True, on_delete= models.CASCADE)
 	status = models.BooleanField(default=False, db_index=True)
 	balance = models.DecimalField(max_digits=16, decimal_places=6, blank=False, null=False)
-	last_touch = models.DateTimeField(auto_now_add=True, blank=True, null=True)
+	# last_touch = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 	skin_id = models.IntegerField(blank=True, null=True)
 	direction = models.CharField(max_length=250, blank=True, null=True)
 	phone = models.CharField(max_length=50, blank=True, null=True)
-	#last_ip = models.IntegerField()
+	# last_ip = models.IntegerField()
 	#last_ips = models.CharField(max_length=120, blank=True, null=True)
 
 	class Meta:
-		verbose_name = _('Perfil')
-		verbose_name_plural = _('Perfiles')
-		app_label = 'Profiles'
+		verbose_name = _('Profile')
+		verbose_name_plural = _('Profiles')
+		app_label = 'profiles'
 
 	def __unicode__(self):
 		return "%s - %s - %s" % (self.user, self.balance, self.status)
+
+	def serialize(self):
+		return { "pk": self.pk, "user": self.user.pk, "balance": float(self.balance), "status":self.status, "direction":self.direction, "phone": self.phone }
 
 class SessionToken(models.Model):
 	user = models.OneToOneField(User, related_name="Session_User_Token",on_delete= models.CASCADE)
@@ -54,5 +57,18 @@ class UserToken(models.Model):
 
 	def __unicode__(self):
 		return "%s - %s"%(self.user.username, self.token)
+
+
+class RecoveryPass(models.Model):
+	user = models.OneToOneField(User, related_name="recovery_user", on_delete=models.CASCADE)
+	token = models.CharField(max_length=120, blank=False, null=False)
+	created_date = models.DateTimeField(db_index=True)
+
+	class Meta:
+		verbose_name = _('Recovery Token')
+		verbose_name_plural = _('Recovery Tokens')
+
+	def __unicode__(self):
+		return "%s - %s" % (self.user.username, self.token)
 
 # Create your models here.
