@@ -44,12 +44,15 @@ INSTALLED_APPS = [
     'modules.core',
     'modules.profiles',
     'modules.skin',
+    'modules.order',
     'modules.products',
-    'modules.carrito',
     'modules.auction',
+    'corsheaders',
 ]
 
+
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -120,6 +123,13 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.0/topics/i18n/
 
+
+API_TOKEN = config.get('tokens', 'api')
+
+API_PUBLIC = config.get('tokens', 'public')
+
+NEW_API_PUBLIC = config.get('tokens', 'newpublic')
+
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
@@ -128,11 +138,26 @@ USE_I18N = True
 
 USE_TZ = True
 
+#Celery Config
+CELERY_BROKER_URL = "redis://localhost"
+
+# mongo db config
+M_USER = config.get('mongo', 'user')
+M_PWD = config.get('mongo', 'pwd')
+M_HOST = config.get('mongo', 'host')
+M_DB = config.get('mongo', 'db')
+M_PORT = config.get('mongo', 'port')
+
+
+
+CORS_ORIGIN_ALLOW_ALL = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
